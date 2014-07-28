@@ -13,13 +13,16 @@
   "Keymap for refu major mode.")
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.rf\\'" . refu-mode))
-(add-to-list 'auto-mode-alist '("\\.rfs\\'" . refu-mode))
+(add-to-list 'auto-mode-alist '("\\.rsc\\'" . refu-mode))
+(add-to-list 'auto-mode-alist '("\\.rsg\\'" . refu-mode))
 
 ;; refu keywords
 (defconst refu-keywords
-  '("data" "implof" "fn" "module" "signature")
-  "Keywords of the refu language.")
+  '("implof" "defimplof" "fn" "module" "signature" "import" "for" "in"
+    "if" "else" "elif" "return")
+  "Keywords of the refu language except the special cases.
+
+Special cases are: data.")
 
 (defconst refu-constants
   '("true" "false" "nil")
@@ -36,7 +39,22 @@
   "Built in data types of the refu language.")
 
 (defvar refu-identifier-regexp
-  "\<\([:alnum:]\|_\>\)?")
+  "\\([a-zA-z0-9]\\|_\\)+")
+
+(defvar refu-variable-attributes
+  "\\(&\\|*\\|~\\)"
+  "Variable attributes like references '&' e.t.c.")
+
+(defvar refu-variable-decl-nogen-regexp
+  (concat "\\(" refu-identifier-regexp "\\):"
+          refu-variable-attributes
+          "*\\(" refu-identifier-regexp "\\)")
+  "Regular expression for refu variable declaration not using generics.")
+
+(defvar refu-variable-decl-gen-regexp
+  (concat refu-variable-decl-nogen-regexp
+          "<\\(" refu-identifier-regexp "\\)>")
+  "Regular expression for refu variable declaration using generics.")
 
 ;; Set font lock options.
 ;; For information on the various faces check here:
@@ -51,41 +69,85 @@
 ;; http://ergoemacs.org/emacs/elisp_syntax_coloring.html
 (defconst refu-font-lock-keywords
   (list
-   `(,(regexp-opt refu-keywords 'words) . font-lock-keyword-face)
+   '(refu-match-data-decl (1 font-lock-keyword-face)
+                          (2 font-lock-variable-name-face))
    `(,(regexp-opt refu-constants 'words) . font-lock-constant-face)
-   `(,(regexp-opt refu-builtin-types 'words) . font-lock-type-face)
-   ;; '(refu-match-identifiers . font-lock-variable-name-face))
-   '(refu-match-functions . font-lock-function-name-face))
-   ;; `(,(concat
-   ;;                        "fn *"
-   ;;                        "\(" refu-identifier-regexp "\)"
-   ;;                        " *(") . font-lock-function-name-face))
+   `(,(regexp-opt refu-builtin-types 'words) . font-lock-builtin-face)
+   '(refu-match-types-after-functions 2 font-lock-type-face)
+   '(refu-match-functions 1 font-lock-function-name-face)
+   '(refu-match-module-impl-name 2 font-lock-constant-face)
+   '(refu-match-module-signature-name 1 font-lock-constant-face)
+   '(refu-match-variable-decl-gen (1 font-lock-variable-name-face)
+                                  (3 font-lock-type-face)
+                                  (4 font-lock-type-face))
+   '(refu-match-variable-decl (1 font-lock-variable-name-face)
+                              (2 font-lock-type-face))
+   `(,(regexp-opt refu-keywords 'words) . font-lock-keyword-face)
+   )
   "The font lock options for refu.")
 
 (defun refu-match-regexp (re limit)
+  "Generic regular expression matching wrapper for RE with a given LIMIT."
   (re-search-forward re
                      limit ; search bound
                      t     ; no error, return nil
                      nil   ; do not repeat
                      ))
-;; (defun refu-match-identifiers (limit)
-;;   (if (refu-match-regexp "\<fn \>" limit)
-;;       t
-;;       ;;else
+
+(defun refu-match-data-decl (limit)
+  "Search the buffer forward until LIMIT matching data declarations.
+
+First match should be a keyword and second an identifier."
+  (refu-match-regexp
+   (concat
+      " *\\(data\\) *\\(" refu-identifier-regexp "\\)")
+   limit))
+
 
 (defun refu-match-functions (limit)
-  (let ((match
-         (refu-match-regexp 
-          "fn *\\(\\([a-zA-z0-9]\\|_\\)+\\)"
-          limit)))
-    (message "LDEL match is %s" match)
-    (message "LDEL (match-string 1) is %s" (match-string 1))
-  (if match
-      (match-string 1)
-      ;;else
-      nil)))
-      
-    
+  "Search the buffer forward until LIMIT matching function names.
+
+Highlight the 1st result."
+  (refu-match-regexp
+   (concat
+      "fn *\\(" refu-identifier-regexp "\\)")
+   limit))
+
+(defun refu-match-types-after-functions (limit)
+  "Search the buffer forward until LIMIT matching types after functions."
+  (refu-match-regexp
+   (concat
+    "fn *" refu-identifier-regexp "(.*) *-> *\\(" refu-identifier-regexp "\\)")
+   limit))
+
+(defun refu-match-module-impl-name (limit)
+  "Search the buffer forward until LIMIT matching modules implementations."
+  (refu-match-regexp
+   (concat refu-identifier-regexp " *implof *"
+           "\\(" refu-identifier-regexp "\\)")
+   limit))
+
+(defun refu-match-module-signature-name (limit)
+  "Search the buffer forward until LIMIT matching modules signatures."
+  (refu-match-regexp
+   (concat "signature *\\(" refu-identifier-regexp "\\)")
+   limit))
+
+(defun refu-match-variable-decl (limit)
+  "Search the buffer forward until LIMIT matching variable declarations.
+
+First match should be an identifier and second a typename."
+  (refu-match-regexp
+   refu-variable-decl-nogen-regexp
+   limit))
+
+(defun refu-match-variable-decl-gen (limit)
+  "Search the buffer forward until LIMIT matching generic variable declarations.
+
+First match should be an identifier and second and third a typename."
+  (refu-match-regexp
+   refu-variable-decl-gen-regexp
+   limit))
 
 ;; refu syntax table
 (defvar refu-mode-syntax-table
