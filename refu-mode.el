@@ -1,10 +1,48 @@
-;;; refumode.el --- Emacs mode for refu lang
-;;; Commentary:
-;;  Followed the Emacs mode tutorial to make it
-;;  http://www.emacswiki.org/emacs/ModeTutorial
-;;; Code:
+;;; refu-mode.el --- Major mode for refulang
+;; Copyright (C) 2015  Lefteris Karapetsas
 
-(defvar refu-mode-hook nil)
+;; Author: Lefteris Karapetsas  <lefteris@refu.co>
+;; Keywords: languages
+;; Version: 0.1.0
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Solidity is a high-level language whose syntax is similar to that
+;; of Javascript and it is designed to compile to code for the
+;; Ethereum Virtual Machine.
+
+;; This package provides a major mode for writing Solidity code.
+
+;;; Code:
+(require 'cc-mode)
+(defgroup refu nil
+  "Major mode for refu language"
+  :group 'languages ;; Emacs -> Programming -> Languages
+  :prefix "refu-"
+  :link '(url-link :tag "Github" "https://github.com/LefterisJP/refu-mode"))
+
+(defcustom refu-mode-hook nil
+  "Callback hook to execute whenever a refu file is loaded."
+  :group 'refu)
+
+(defcustom refu-exec-path "/usr/bin/refu"
+  "Path to the compiler binary."
+  :group 'solidity
+  :type 'string
+  :package-version '(refu . "0.1.0"))
 
 (defvar refu-mode-map
   (let ((map (make-keymap)))
@@ -18,10 +56,19 @@
 
 ;; refu keywords
 (defconst refu-keywords
-  '("implof" "defimplof" "fn" "module" "signature" "import" "for" "in"
-    "if" "else" "elif" "return")
+  '("class"
+    "instance"
+    "fn"
+    "module"
+    "signature"
+    "import"
+    "for"
+    "in"
+    "if"
+    "else"
+    "elif"
+    "return")
   "Keywords of the refu language except the special cases.
-
 Special cases are: data.")
 
 (defconst refu-constants
@@ -39,15 +86,15 @@ Special cases are: data.")
   "Built in data types of the refu language.")
 
 (defvar refu-identifier-regexp
-  "\\([a-zA-z0-9]\\|_\\)+")
+  "\\(\\(?:[a-zA-z_]\\(?:[a-zA-z0-9_]\\)*\\)+\\)")
 
 (defvar refu-variable-attributes
-  "\\(&\\|*\\|~\\)"
+  "\\(&\\|*\\|\\|~\\)"
   "Variable attributes like references '&' e.t.c.")
 
 (defvar refu-variable-decl-nogen-regexp
   (concat "\\(" refu-identifier-regexp "\\):"
-          refu-variable-attributes
+          ;; refu-variable-attributes
           "*\\(" refu-identifier-regexp "\\)")
   "Regular expression for refu variable declaration not using generics.")
 
@@ -69,21 +116,18 @@ Special cases are: data.")
 ;; http://ergoemacs.org/emacs/elisp_syntax_coloring.html
 (defconst refu-font-lock-keywords
   (list
-   '(refu-match-data-decl (1 font-lock-keyword-face)
+   '(refu-match-functions (1 font-lock-keyword-face)
+                          (2 font-lock-function-name-face))
+   '(refu-match-type-decl (1 font-lock-type-face)
                           (2 font-lock-variable-name-face))
-   `(,(regexp-opt refu-constants 'words) . font-lock-constant-face)
-   `(,(regexp-opt refu-builtin-types 'words) . font-lock-builtin-face)
-   '(refu-match-types-after-functions 2 font-lock-type-face)
-   '(refu-match-functions 1 font-lock-function-name-face)
-   '(refu-match-module-impl-name 2 font-lock-constant-face)
-   '(refu-match-module-signature-name 1 font-lock-constant-face)
-   '(refu-match-variable-decl-gen (1 font-lock-variable-name-face)
-                                  (3 font-lock-type-face)
-                                  (4 font-lock-type-face))
    '(refu-match-variable-decl (1 font-lock-variable-name-face)
                               (2 font-lock-type-face))
-   `(,(regexp-opt refu-keywords 'words) . font-lock-keyword-face)
-   )
+   ;; '(refu-match-variable-decl-gen (1 font-lock-variable-name-face)
+   ;;                                (3 font-lock-type-face)
+   ;;                                (4 font-lock-type-face))
+   `(,(regexp-opt refu-constants 'words) . font-lock-constant-face)
+   `(,(regexp-opt refu-builtin-types 'words) . font-lock-type-face)
+   `(,(regexp-opt refu-keywords 'words) . font-lock-keyword-face))
   "The font lock options for refu.")
 
 (defun refu-match-regexp (re limit)
@@ -94,13 +138,13 @@ Special cases are: data.")
                      nil   ; do not repeat
                      ))
 
-(defun refu-match-data-decl (limit)
+(defun refu-match-type-decl (limit)
   "Search the buffer forward until LIMIT matching data declarations.
 
 First match should be a keyword and second an identifier."
   (refu-match-regexp
    (concat
-      " *\\(data\\) *\\(" refu-identifier-regexp "\\)")
+      " *\\(type\\) *" refu-identifier-regexp)
    limit))
 
 
@@ -110,21 +154,7 @@ First match should be a keyword and second an identifier."
 Highlight the 1st result."
   (refu-match-regexp
    (concat
-      "fn *\\(" refu-identifier-regexp "\\)")
-   limit))
-
-(defun refu-match-types-after-functions (limit)
-  "Search the buffer forward until LIMIT matching types after functions."
-  (refu-match-regexp
-   (concat
-    "fn *" refu-identifier-regexp "(.*) *-> *\\(" refu-identifier-regexp "\\)")
-   limit))
-
-(defun refu-match-module-impl-name (limit)
-  "Search the buffer forward until LIMIT matching modules implementations."
-  (refu-match-regexp
-   (concat refu-identifier-regexp " *implof *"
-           "\\(" refu-identifier-regexp "\\)")
+    " *\\(fn\\) *" refu-identifier-regexp)
    limit))
 
 (defun refu-match-module-signature-name (limit)
@@ -135,10 +165,10 @@ Highlight the 1st result."
 
 (defun refu-match-variable-decl (limit)
   "Search the buffer forward until LIMIT matching variable declarations.
-
 First match should be an identifier and second a typename."
   (refu-match-regexp
-   refu-variable-decl-nogen-regexp
+   (concat
+    " *" refu-identifier-regexp " *: *" refu-identifier-regexp)
    limit))
 
 (defun refu-match-variable-decl-gen (limit)
@@ -163,29 +193,32 @@ First match should be an identifier and second and third a typename."
     st)
   "Syntax table for the refu language.")
 
-(defun refu-indent-line ()
-  "Indent a line as refu code."
-  (interactive)
-  (beginning-of-line) ()
-  (if (bobp)            ; if at beginning of buffer
-      (indent-line-to 0)
-    ;else
-    (progn)))
-
-(defun refu-mode ()
-  "Major mode for editing refu lang buffers."
-  (interactive)
-  (kill-all-local-variables)
+(define-derived-mode refu-mode c-mode "refu"
+  "Major mode for editing refulang buffers."
   (set-syntax-table refu-mode-syntax-table)
-  (use-local-map refu-mode-map)
   ;; specify syntax highlighting
-  (set (make-local-variable 'font-lock-defaults) '(refu-font-lock-keywords))
-  ;; register indentation functions
-  (set (make-local-variable 'indent-line-function) 'refu-indent-line)
-  ;; set major mode name and run hooks
-  (setq major-mode 'refu-mode)
-  (setq mode-name "refu")
-  (run-hooks 'refu-mode-hook))
+  (setq font-lock-defaults '(refu-font-lock-keywords))
+  ;; register indentation functions, basically the c-mode ones
+  (make-local-variable 'comment-start)
+  (make-local-variable 'comment-end)
+  (make-local-variable 'comment-start-skip)
+
+  (make-local-variable 'paragraph-start)
+  (make-local-variable 'paragraph-separate)
+  (make-local-variable 'paragraph-ignore-fill-prefix)
+  (make-local-variable 'adaptive-fill-mode)
+  (make-local-variable 'adaptive-fill-regexp)
+  (make-local-variable 'fill-paragraph-handle-comment)
+
+  ;; now set their values
+  (set (make-local-variable 'parse-sexp-ignore-comments) t)
+  (set (make-local-variable 'indent-line-function) 'c-indent-line)
+  (set (make-local-variable 'indent-region-function) 'c-indent-region)
+  (set (make-local-variable 'normal-auto-fill-function) 'c-do-auto-fill)
+  (set (make-local-variable 'comment-multi-line) t)
+  (set (make-local-variable 'comment-line-break-function)
+       'c-indent-new-comment-line)
+  (run-hooks 'solidity-mode-hook))
 
 (provide 'refu-mode)
 ;;; refu-mode ends here
