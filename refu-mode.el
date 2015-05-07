@@ -20,11 +20,9 @@
 
 ;;; Commentary:
 
-;; Solidity is a high-level language whose syntax is similar to that
-;; of Javascript and it is designed to compile to code for the
-;; Ethereum Virtual Machine.
+;; Refu is a systems programming language currently under development.
+;; For more information visit: http://refu.co
 
-;; This package provides a major mode for writing Solidity code.
 
 ;;; Code:
 (require 'cc-mode)
@@ -58,18 +56,26 @@
 (defconst refu-keywords
   '("class"
     "instance"
+    "kind"
+    "type"
     "fn"
     "module"
     "signature"
     "import"
+    "match"
     "for"
     "in"
     "if"
     "else"
     "elif"
-    "return")
-  "Keywords of the refu language except the special cases.
-Special cases are: data.")
+    "return"
+    "const"
+    "raise"
+    "try"
+    "catch"
+    "precond"
+    "postcond")
+  "Keywords of the refu language.")
 
 (defconst refu-constants
   '("true" "false" "nil")
@@ -118,10 +124,25 @@ Special cases are: data.")
   (list
    '(refu-match-functions (1 font-lock-keyword-face)
                           (2 font-lock-function-name-face))
-   '(refu-match-type-decl (1 font-lock-type-face)
+   '(refu-match-type-decl (1 font-lock-keyword-face)
+                          (2 font-lock-variable-name-face))
+   '(refu-match-kind-decl (1 font-lock-keyword-face)
                           (2 font-lock-variable-name-face))
    '(refu-match-variable-decl (1 font-lock-variable-name-face)
                               (2 font-lock-type-face))
+   '(refu-match-typeclass-decl (1 font-lock-keyword-face)
+                               (2 font-lock-variable-name-face))
+   '(refu-match-typeinstance-decl (1 font-lock-keyword-face)
+                                  (2 font-lock-variable-name-face))
+   '(refu-match-import-stmt (1 font-lock-keyword-face)
+                            (2 font-lock-variable-name-face))
+   '(refu-match-module-decl (1 font-lock-keyword-face)
+                            (2 font-lock-variable-name-face))
+   '(refu-match-module-signature-decl (1 font-lock-keyword-face)
+                                      (2 font-lock-variable-name-face))
+   '(refu-match-module-impl-decl (1 font-lock-variable-name-face)
+                                 (2 font-lock-keyword-face)
+                                 (3 font-lock-type-face))
    ;; '(refu-match-variable-decl-gen (1 font-lock-variable-name-face)
    ;;                                (3 font-lock-type-face)
    ;;                                (4 font-lock-type-face))
@@ -139,7 +160,7 @@ Special cases are: data.")
                      ))
 
 (defun refu-match-type-decl (limit)
-  "Search the buffer forward until LIMIT matching data declarations.
+  "Search the buffer forward until LIMIT matching a type declaration.
 
 First match should be a keyword and second an identifier."
   (refu-match-regexp
@@ -147,6 +168,32 @@ First match should be a keyword and second an identifier."
       " *\\(type\\) *" refu-identifier-regexp)
    limit))
 
+(defun refu-match-kind-decl (limit)
+  "Search the buffer forward until LIMIT matching a kind declaration.
+
+First match should be a keyword and second an identifier."
+  (refu-match-regexp
+   (concat
+      " *\\(kind\\) *" refu-identifier-regexp)
+   limit))
+
+(defun refu-match-typeclass-decl (limit)
+  "Search the buffer forward until LIMIT matching a typeclass declaration.
+
+First match should be a keyword and second an identifier."
+  (refu-match-regexp
+   (concat
+      " *\\(class\\) *" refu-identifier-regexp)
+   limit))
+
+(defun refu-match-typeinstance-decl (limit)
+  "Search the buffer forward until LIMIT matching a type instance declaration.
+
+First match should be a keyword and second an identifier."
+  (refu-match-regexp
+   (concat
+      " *\\(instance\\) *" refu-identifier-regexp)
+   limit))
 
 (defun refu-match-functions (limit)
   "Search the buffer forward until LIMIT matching function names.
@@ -157,10 +204,32 @@ Highlight the 1st result."
     " *\\(fn\\) *" refu-identifier-regexp)
    limit))
 
-(defun refu-match-module-signature-name (limit)
+(defun refu-match-import-stmt (limit)
+  "Search the buffer forward until LIMIT matching modules import."
+  (refu-match-regexp
+   (concat
+    " *\\(import\\) *" refu-identifier-regexp)
+   limit))
+
+(defun refu-match-module-decl (limit)
+  "Search the buffer forward until LIMIT matching module declarations."
+  (refu-match-regexp
+   (concat
+    " *\\(module\\) *" refu-identifier-regexp)
+   limit))
+
+(defun refu-match-module-signature-decl (limit)
   "Search the buffer forward until LIMIT matching modules signatures."
   (refu-match-regexp
-   (concat "signature *\\(" refu-identifier-regexp "\\)")
+   (concat
+    " *\\(signature\\) *" refu-identifier-regexp)
+   limit))
+
+(defun refu-match-module-impl-decl (limit)
+  "Search the buffer forward until LIMIT matching module impl declarations."
+  (refu-match-regexp
+   (concat
+    refu-identifier-regexp " *\\(implof\\) *" refu-identifier-regexp)
    limit))
 
 (defun refu-match-variable-decl (limit)
